@@ -26,6 +26,7 @@ lib64/
 parts/
 sdist/
 var/
+tmp/
 wheels/
 share/python-wheels/
 *.egg-info/
@@ -67,6 +68,14 @@ cover/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+
+# latex
+_minted-main/
+main.synctex.gz
+*.aux
+*.out
+*.pdf
+
 
 # Flask stuff:
 instance/

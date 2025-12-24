@@ -20,7 +20,8 @@ def evaluate_vllm(
     prompts: List[str],
     ground_truths: List[int],    
     eval_sampling_params: SamplingParams,
-    output_path: str
+    output_path: str,
+    input_examples: List[str],
     ) -> None:
     """
     Evaluate a language model on a list of prompts,
@@ -43,8 +44,8 @@ def evaluate_vllm(
 
     all_metrics = []
     with xopen(output_path, "w") as fout:
-        for response, prompt, reward in tqdm(
-            zip(generated_texts, prompts, rewards)
+        for input_example, ground_truth, response, prompt, reward in tqdm(
+            zip(input_examples, ground_truths, generated_texts, prompts, rewards)
         ):
             all_metrics.append(reward)
 
@@ -52,7 +53,9 @@ def evaluate_vllm(
                 json.dumps(
                     {
                         "model_prompt": prompt,
+                        "input_example": input_example,
                         "model_response": response,
+                        "ground_truth": ground_truth,
                         "reward": reward,
                     }
                 )
@@ -91,7 +94,8 @@ def main(input_path, model_name_or_path, num_gpus=1, output_path="tmp/tmp.txt"):
         trust_remote_code=True,
     )
 
-    evaluate_vllm(model,  r1_zero_reward_fn, prompts, ground_truths, sampling_params, output_path)
+    evaluate_vllm(model,  r1_zero_reward_fn, prompts,
+         ground_truths, sampling_params, output_path, input_examples)
 
 if __name__ == "__main__":
     logging.basicConfig(
@@ -127,3 +131,9 @@ if __name__ == "__main__":
         args.output_path,
     )
     logger.info("finished running %s", sys.argv[0])
+'''
+cmd:
+uv run python cs336_alignment/eval_math_baseline.py --input-path data/gsm8k/test.jsonl \
+ --model-name-or-path Qwen/Qwen2.5-Math-1.5B \
+ --output-path gsm8k.test.qwen2.5.math.1.5B.result.jsonl 1>eval_math_baseline.log 2>&1
+ '''

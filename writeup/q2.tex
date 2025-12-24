@@ -1,0 +1,53 @@
+\titledquestion{Supervised Finetuning for MATH}[12] 
+\begin{parts}
+    \part[2] \textbf{Problem} (tokenize\_prompt\_and\_output): Prompt and output tokenization
+      \textbf{Deliverable}: Implement a method tokenize_prompt_and_output that tokenizes the question and
+        output separately, concatenates them together, and constructs a response_mask. The following
+        interface is recommended:
+        page(9)
+    \begin{subparts}
+      \subpart Write a script to evaluate Qwen 2.5 Math 1.5B zero-shot performance on MATH. This script
+        should (1) load the MATH validation examples from /data/a5-alignment/MATH/validation.jsonl,
+        (2) format them as string prompts to the language model using the r1\_zero prompt, and (3) generate
+        outputs for each example. This script should also (4) calculate evaluation metrics and
+        (5) serialize the examples, model generations, and corresponding evaluation scores to disk for
+        analysis in subsequent problems.
+        It might be helpful for your implementation to include a method evaluate\_vllm with arguments
+        similar to the following, as you will be able to reuse it later:
+        \begin{lstlisting}[language=Python]
+        def evaluate_vllm(
+        vllm_model: LLM,
+        reward_fn: Callable[[str, str], dict[str, float]],
+        prompts: List[str],
+        eval_sampling_params: SamplingParams
+        ) -> None:
+        """
+        Evaluate a language model on a list of prompts,
+        compute evaluation metrics, and serialize results to disk.
+        """
+        \end{lstlisting}
+
+        \textbf{Deliverable}: A script to evaluate baseline zero-shot MATH performance.
+
+        \ifans{cs336\_alignment/eval\_math\_baseline.py}
+
+      \subpart Run your evaluation script on Qwen 2.5 Math 1.5B. How many model generations fall into each
+        of the following categories: (1) correct with both format and answer reward 1, (2) format reward
+        1 and answer reward 0, (3) format reward 0 and answer reward 0? Observing at least 10 cases
+        where format reward is 0, do you think the issue is with the base model’s output, or the parser?
+        Why? What about in (at least 10) cases where format reward is 1 but answer reward is 0?
+
+        \textbf{Deliverable}: Commentary on the model and reward function performance, including examples of each category.
+
+        \ifans{I run the script on GSM8K/test.jsonl. The categories: (1)30, (2)224, (3)1065. Observing 10 cases where format reward is 0, the issue is with the base model’s output, for the output does not include ``</think> <answer>''. Observing 10 cases where format reward is 1 but answer reward is 0, 6 of 10 is with the parser(the right answer is in the output), 4 of 10 is because the base model's output is wrong.}
+
+      \subpart How well does the Qwen 2.5 Math 1.5B zero-shot baseline perform on MATH?
+
+        \textbf{Deliverable}: 1-2 sentences with evaluation metrics.
+
+        \ifans{
+        on GSM8K/test.jsonl, 1318 answers, forward reward sum is 254(19\%), answer reward sum is 30 (2\%)
+        }
+    \end{subparts}
+       
+\end{parts}
