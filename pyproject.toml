@@ -29,6 +29,8 @@ include = ["cs336_alignment"]
 package = true
 no-build-isolation-package = ["flash-attn"]
 
+index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+allow-insecure-host = ["pypi.tuna.tsinghua.edu.cn"]
 
 [tool.uv.sources]
 alpaca-eval = { git = "https://github.com/nelson-liu/alpaca_eval.git", rev = "forward_kwargs_to_vllm" }
