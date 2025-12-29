@@ -13,6 +13,8 @@ __all__ = [
     "tokenize_prompt_and_output",
     "compute_entropy",
     "get_response_log_probs",
+    "masked_normalize",
+    "sft_microbatch_train_step",
 ]
 
 def tokenize_prompt_and_output(
@@ -62,7 +64,7 @@ def get_response_log_probs(
     input_ids: torch.Tensor,
     labels: torch.Tensor,
     return_token_entropy: bool,
-) -> torch.Tensor:
+) -> dict[str, Tensor]:
     """Get the conditional log-probs of the response given the prompt,
         and optionally the entropy of the next token predictions.
 
@@ -93,3 +95,50 @@ def get_response_log_probs(
         result["token_entropy"] = compute_entropy(logits)
 
     return result
+
+def masked_normalize(
+    tensor: torch.Tensor,
+    mask: torch.Tensor,
+    dim: int | None = None,
+    normalize_constant: float = 1.0,
+) -> torch.Tensor:
+    """Sum over a dimension and normalize by a constant,
+    considering only the elements with mask value 1.
+
+    Args:
+        tensor: torch.Tensor, the tensor to sum and normalize.
+        mask: torch.Tensor, the mask. We only consider elements
+            with mask value 1.
+        dim: int | None, the dimension to sum along before
+            normalization. If None, sum over all dimensions.
+        normalize_constant: float, the constant to divide by
+            for normalization.
+
+    Returns:
+        torch.Tensor, the normalized sum, where masked elements
+            (mask=0) don't contribute to the sum.
+    """
+    return torch.sum(tensor * mask, dim=dim) / normalize_constant
+
+def sft_microbatch_train_step(
+    policy_log_probs: torch.Tensor,
+    response_mask: torch.Tensor,
+    gradient_accumulation_steps: int,
+    normalize_constant: float | None = 1.0,
+) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    """
+    Compute the policy gradient loss and backprop its gradients for a microbatch.
+    """
+    loss = masked_normalize(tensor=policy_log_probs,
+                mask=response_mask,
+                dim=None,
+                normalize_constant=normalize_constant
+            )
+    # divide by batch_size
+    loss = -loss / policy_log_probs.shape[0] / gradient_accumulation_steps
+    loss.backward()
+    metadata = {}
+    return (loss, metadata)
+
+def log_generations():
+    pass

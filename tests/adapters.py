@@ -9,6 +9,7 @@ from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizerBase
 
 from cs336_alignment.sft_helper import *
+from cs336_alignment.grpo_helper import *
 
 def run_tokenize_prompt_and_output(
     prompt_strs: list[str],
@@ -42,7 +43,7 @@ def run_compute_group_normalized_rewards(
     group_size: int,
     advantage_eps: float,
     normalize_by_std: bool,
-) -> tuple[torch.Tensor, dict[str, float]]:
+) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
     """
     Compute rewards for each group of rollout responses, 
     normalized by the group size.
@@ -78,7 +79,8 @@ def run_compute_group_normalized_rewards(
                 You may choose what you wish to log here
                 (some statistics of the rewards, etc.).
     """
-    raise NotImplementedError
+    return compute_group_normalized_rewards(reward_fn, rollout_responses, repeated_ground_truths,
+        group_size, advantage_eps, normalize_by_std)
 
 
 def run_compute_entropy(logits: torch.Tensor) -> torch.Tensor:
@@ -91,7 +93,7 @@ def run_get_response_log_probs(
     input_ids: torch.Tensor,
     labels: torch.Tensor,
     return_token_entropy: bool,
-) -> torch.Tensor:
+) -> dict[str, torch.Tensor]:
     """Get the conditional log-probs of the response given the prompt,
         and optionally the entropy of the next token predictions.
 
@@ -200,11 +202,11 @@ def run_sft_microbatch_train_step(
     policy_log_probs: torch.Tensor,
     response_mask: torch.Tensor,
     gradient_accumulation_steps: int,
-    normalize_constant: int | None = 1.0,
+    normalize_constant: float | None = 1.0,
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
     """Compute the policy gradient loss and backprop its gradients for a microbatch.
     """
-    raise NotImplementedError
+    return sft_microbatch_train_step(policy_log_probs, response_mask, gradient_accumulation_steps, normalize_constant)
 
     
 def run_grpo_microbatch_train_step(
@@ -268,7 +270,7 @@ def run_masked_normalize(
         torch.Tensor, the normalized sum, where masked elements
             (mask=0) don't contribute to the sum.
     """
-    raise NotImplementedError
+    return masked_normalize(tensor, mask, dim, normalize_constant)
 
 
 """
