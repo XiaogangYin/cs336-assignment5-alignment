@@ -5,6 +5,9 @@ import torch
 
 __all__ = [
     "compute_group_normalized_rewards",
+    "compute_naive_policy_gradient_loss",
+    "compute_grpo_clip_loss",
+    "compute_policy_gradient_loss",
 ]
 
 def compute_group_normalized_rewards(
@@ -59,3 +62,71 @@ def compute_group_normalized_rewards(
         A = rewards - mean
     A = A.reshape(-1)
     return A, raw_rewards, {}
+
+
+def compute_naive_policy_gradient_loss(
+    raw_rewards_or_advantages: torch.Tensor,
+    policy_log_probs: torch.Tensor,
+) -> torch.Tensor:
+    """Compute policy gradient loss using either raw rewards or advantages.
+
+    Args:
+        raw_rewards_or_advantages: torch.Tensor of shape (batch_size, 1): 
+            the raw rewards or advantages for each rollout response.
+        policy_log_probs: torch.Tensor of shape (batch_size, sequence_length): 
+            the log-probs of the policy.
+
+    Returns:
+        torch.Tensor of shape (batch_size, sequence_length): 
+            the policy gradient per-token loss.
+    """
+    return -1.0 * raw_rewards_or_advantages * policy_log_probs
+
+
+def compute_grpo_clip_loss(
+    advantages: torch.Tensor,
+    policy_log_probs: torch.Tensor,
+    old_log_probs: torch.Tensor,
+    cliprange: float,
+) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    """Compute the GRPO-Clip loss.
+
+    Args:
+        advantages: torch.Tensor of shape (batch_size, 1): 
+            the advantages for each rollout response.
+        policy_log_probs: torch.Tensor of shape (batch_size, sequence_length): 
+            the log-probs of the policy.
+        old_log_probs: torch.Tensor of shape (batch_size, sequence_length): 
+            the log-probs of the old policy.
+        cliprange: float, the clip range for the ratio.
+
+    Returns:
+        tuple[torch.Tensor, dict[str, torch.Tensor]]:
+            torch.Tensor of shape (batch_size, sequence_length): 
+                the GRPO-Clip per-token loss.
+            dict[str, torch.Tensor]: metadata for the GRPO-Clip loss 
+                (used to compute clip fraction).
+    """
+    fraction = torch.exp(policy_log_probs - old_log_probs)
+    clip_advantages = torch.clip(fraction, 1-cliprange, 1+cliprange) * advantages
+    x = torch.minimum(fraction * advantages, clip_advantages)
+    return -1.0 * x, {"clip_advantages": clip_advantages}
+
+
+def compute_policy_gradient_loss(
+    policy_log_probs: torch.Tensor,
+    loss_type: str,
+    raw_rewards: torch.Tensor,
+    advantages: torch.Tensor,
+    old_log_probs: torch.Tensor,
+    cliprange: float,
+) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    """
+    Wrapper that delegates to the appropriate policy gradient loss function above.
+    """
+    if loss_type == "no_baseline":
+        return compute_naive_policy_gradient_loss(raw_rewards, policy_log_probs), {}
+    elif loss_type == "reinforce_with_baseline":
+        return compute_naive_policy_gradient_loss(advantages, policy_log_probs), {}
+    else:
+        return compute_grpo_clip_loss(advantages, policy_log_probs, old_log_probs, cliprange)
