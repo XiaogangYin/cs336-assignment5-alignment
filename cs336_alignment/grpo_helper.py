@@ -8,6 +8,8 @@ __all__ = [
     "compute_naive_policy_gradient_loss",
     "compute_grpo_clip_loss",
     "compute_policy_gradient_loss",
+    "masked_mean",
+    "grpo_microbatch_train_step",
 ]
 
 def compute_group_normalized_rewards(
@@ -55,9 +57,9 @@ def compute_group_normalized_rewards(
     """
     raw_rewards = [reward_fn(r, g)["reward"] for r, g in zip(rollout_responses, repeated_ground_truths)]
     rewards = torch.Tensor(raw_rewards).reshape(-1, group_size)
-    var, mean = torch.var_mean(rewards, dim=1, keepdim=True)
+    std, mean = torch.std_mean(rewards, dim=1, keepdim=True)
     if normalize_by_std:
-        A = (rewards - mean)/(torch.sqrt(var) + advantage_eps)
+        A = (rewards - mean)/(std + advantage_eps)
     else:
         A = rewards - mean
     A = A.reshape(-1)
@@ -130,3 +132,67 @@ def compute_policy_gradient_loss(
         return compute_naive_policy_gradient_loss(advantages, policy_log_probs), {}
     else:
         return compute_grpo_clip_loss(advantages, policy_log_probs, old_log_probs, cliprange)
+
+
+def masked_mean(tensor: torch.Tensor, mask: torch.Tensor, dim: int | None = None) -> torch.Tensor:
+    """Compute the mean of the tensor along a dimension,
+    considering only the elements with mask value 1.
+
+    Args:
+        tensor: torch.Tensor, the tensor to compute the mean of.
+        mask: torch.Tensor, the mask. We only take the mean over
+            the elements with mask value 1.
+        dim: int | None, the dimension to compute the mean along.
+            If None, sum over all non-masked elements and average
+            by their total count.
+
+    Returns:
+        torch.Tensor, the mean of the tensor along the specified
+            dimension, considering only the elements with mask value 1.
+    """
+    # numpy, 0.0 除以 0.0）没有抛出异常，反而返回了 nan（以及 inf）
+    return torch.sum(tensor * mask, dim=dim) / torch.sum(mask, dim=dim)
+
+
+def grpo_microbatch_train_step(
+    policy_log_probs: torch.Tensor,
+    response_mask: torch.Tensor,
+    gradient_accumulation_steps: int,
+    loss_type: Literal["no_baseline", "reinforce_with_baseline", "grpo_clip"],
+    raw_rewards: torch.Tensor | None = None,
+    advantages: torch.Tensor | None = None,
+    old_log_probs: torch.Tensor | None = None,
+    cliprange: float | None = None,
+) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    """Compute the policy gradient loss and backprop its gradients for a microbatch.
+
+    Args:
+        policy_log_probs: torch.Tensor of shape (batch_size, sequence_length): 
+            the log-probs of the policy.
+        response_mask: torch.Tensor of shape (batch_size, sequence_length): 
+            the mask for the response.
+        gradient_accumulation_steps: int, the number of gradient accumulation steps.
+        loss_type: Literal["no_baseline", "reinforce_with_baseline", "grpo_clip"], 
+            the type of loss function to use.
+        raw_rewards: torch.Tensor | None, the raw rewards for each rollout response.
+            Needed for loss_type="no_baseline".
+        advantages: torch.Tensor | None, the advantages for each rollout response.
+            Needed for loss_type in {"reinforce_with_baseline", "grpo_clip"}.
+        old_log_probs: torch.Tensor | None, the log-probs of the old policy.
+            Needed for loss_type="grpo_clip".
+        cliprange: float | None, the clip range for the ratio. 
+            Needed for loss_type="grpo_clip".
+        constant_normalize_factor: int | None, provided if we want to sum over 
+            the sequence dimension and normalize by this constant factor
+            (as in Dr. GRPO).
+
+    Returns:
+        tuple[torch.Tensor, dict[str, torch.Tensor]]: 
+            the policy gradient loss and its metadata.
+    """
+    policy_gradient_loss, metadata = compute_policy_gradient_loss(policy_log_probs, 
+            loss_type, raw_rewards, advantages, old_log_probs, cliprange)
+    loss = masked_mean(policy_gradient_loss, response_mask, dim=-1)
+    loss = torch.mean(loss) / gradient_accumulation_steps
+    loss.backward()
+    return (loss, metadata)
