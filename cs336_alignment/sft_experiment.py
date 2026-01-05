@@ -50,10 +50,10 @@ def load_policy_into_vllm_instance(policy: PreTrainedModel, llm: LLM):
 #gsm8k format
 class JsonlDataset(Dataset):
     def __init__(self, jsonl_file_path):
-        examples = []
+        self.examples = []
         with open(input_path) as f:
             for line in f:
-                examples.append(json.loads(line))
+                self.examples.append(json.loads(line))
 
     def __len__(self):
         return len(self.examples)
