@@ -2,6 +2,7 @@ import os
 import random
 import json
 import itertools
+import pathlib
 from typing import Any, Callable, Literal
 
 import torch
@@ -15,13 +16,12 @@ __all__ = [
     "iterate_batches",
 ]
 
-with open("cs336_alignment/prompts/alpaca_sft.prompt") as f:
+with open(pathlib.Path(__file__).resolve().parent / "prompts/alpaca_sft.prompt") as f:
     alpaca_sft_prompt = f.read().rstrip()
 
-def alpaca_sft_format(prompt, response):
-    return alpaca_sft_prompt.replace("{instruction}", prompt
-                    ).replace("{response}", response
-                    ) + "<|end_of_text|>"
+def alpaca_sft_format(prompt, response, eos="<|end_of_text|>"):
+    return alpaca_sft_prompt.format(instruction=prompt,
+                    response=response) + eos
 
 
 class PackedSftDataset(Dataset):
@@ -42,23 +42,16 @@ class PackedSftDataset(Dataset):
         (when shuffle=True), or if they are concatenated in the order they appear in the data
         (when shuffle=False).
         """
-        DELIMITER_ID = 128001
-
-        with open("cs336_alignment/prompts/alpaca_sft.prompt") as f:
-            alpaca_sft_prompt = f.read().rstrip()
-
         examples = []
         with open(dataset_path) as f:
             for line in f:
                 example = json.loads(line)
-                example_str = alpaca_sft_prompt.replace(
-                        "{instruction}", example["prompt"]
-                    ).replace(
-                        "{response}", example["response"]
-                    ) + "<|end_of_text|>"
+                example_str = alpaca_sft_format(example["prompt"],
+                    example["response"], eos=tokenizer.eos_token or "<|end_of_text|>")
                 encoded = tokenizer(example_str, 
                         return_tensors="pt", return_attention_mask=False)
-                examples.append(encoded["input_ids"][0])
+                examples.append(encoded.input_ids[0])
+
         if shuffle:
             random.shuffle(examples)
 
@@ -104,7 +97,7 @@ def iterate_batches(
 
 if __name__ == "__main__":
     from transformers import AutoTokenizer
-    import pathlib
+    
 
     FIXTURES_PATH = (pathlib.Path(__file__).resolve().parent.parent) / "tests/fixtures"
 
