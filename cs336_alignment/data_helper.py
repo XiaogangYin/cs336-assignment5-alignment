@@ -14,6 +14,7 @@ __all__ = [
     "alpaca_sft_format",
     "PackedSftDataset",
     "iterate_batches",
+    "alpaca_sft_format",
 ]
 
 with open(pathlib.Path(__file__).resolve().parent / "prompts/alpaca_sft.prompt") as f:
