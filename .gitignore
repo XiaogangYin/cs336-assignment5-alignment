@@ -76,6 +76,8 @@ main.synctex.gz
 *.out
 *.pdf
 
+uv.lock
+pyproject.toml.mac
 
 # Flask stuff:
 instance/
